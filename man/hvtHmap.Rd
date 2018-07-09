@@ -5,9 +5,9 @@
 \title{hvtHmap}
 \usage{
 hvtHmap(hvt.results, dataset, child.level, hmap.cols, color.vec = NULL,
-  line.width = NULL, centroid.size = 3, pch1 = 19, pch2 = 1,
-  palette.color = 1, show.points = F, asp = 1, ask = T,
-  tess.label = NULL, label.size = 0.5)
+  line.width = NULL, centroid.size = 3, pch = 21, palette.color = 6,
+  previous_level_heatmap = T, show.points = F, asp = 1, ask = T,
+  tess.label = NULL, label.size = 0.5, ...)
 }
 \arguments{
 \item{hvt.results}{List. A list of hvt.results obtained from the HVT
@@ -18,7 +18,7 @@ function.}
 \item{child.level}{Numeric. Indicating the level for which the heat map is
 to be plotted.}
 
-\item{hmap.cols}{Vector. A vector with column names (or) column indices of
+\item{hmap.cols}{Numeric or Character. The column number of column name from
 the dataset indicating the variables for which the heat map is to be
 plotted.}
 
@@ -31,18 +31,17 @@ plotted.}
 \item{centroid.size}{Numeric. Indicating the centroid size of the first
 level. (default = 3)}
 
-\item{pch1}{Numeric. Indicating the parent level centroid's symbol type.
-(default = 19)}
-
-\item{pch2}{Numeric. Indicating the child level centroid's symbol type.
-(default = 1)}
+\item{pch}{Numeric. Indicating the centroid's symbol type.
+(default = 21)}
 
 \item{palette.color}{Numeric. Indicating the heat map color palette. 1 -
 rainbow, 2 - heat.colors, 3 - terrain.colors, 4 - topo.colors, 5 -
-cm.colors, 6 - seas color. (default = 1)}
+cm.colors, 6 - seas color. (default = 6)}
 
-\item{show.points}{Logical. Indicating if the size of the centroids should
-be relative to the number of data points in that cluster. (default = FALSE)}
+\item{previous_level_heatmap}{Logical. If TRUE, the heatmap of previous level will be overlayed on the heatmap of selected level. If #' FALSE, the heatmap of only selected level will be plotted}
+
+\item{show.points}{Logical. Indicating if the centroids should
+be plotted on the tesselations. (default = FALSE)}
 
 \item{asp}{Numeric. Indicating the aspect ratio type. For flexible aspect
 ratio set, asp = NA. (default = 1)}
@@ -55,6 +54,8 @@ asked for input, before a new figure is drawn. (default = TRUE)}
 
 \item{label.size}{Numeric. The size by which the tessellation labels should
 be scaled. (default = 0.5)}
+
+\item{...}{The ellipsis is passed to it as additional argument. (Used internally)}
 }
 \description{
 Heat Map over Hierarchical Voronoi Tessellations
@@ -81,20 +82,18 @@ plotted. The heat maps and hierarchical tessellations are obtained for all
 the desired variables.
 }
 \examples{
+data(USArrests)
+hvt.results <- list()
+hvt.results <- HVT(USArrests, nclust = 6, depth = 1, quant.err = 0.2, 
+                  projection.scale = 10, normalize = TRUE)
+hvtHmap(hvt.results, USArrests, child.level = 1,hmap.cols = 'Murder', line.width = c(0.2),
+color.vec = c('#141B41'),palette.color = 6)
 
-
-
-
-data("iris",package="datasets")
-iris <- iris[,1:2]
-hvt.results <- HVT(iris, nclust = 6, depth = 1, quant.err = 0.2, 
-projection.scale = 10, normalize = TRUE)
-
-hvtHmap(hvt.results, iris, child.level = 1,hmap.cols =c(1:2), show.points=TRUE)
-
-
-
-
+hvt.results <- list()
+hvt.results <- HVT(USArrests, nclust = 3, depth = 3, quant.err = 0.2, 
+                  projection.scale = 10, normalize = TRUE)
+hvtHmap(hvt.results, train_computers, child.level = 3,hmap.cols = 'quant_error', 
+line.width = c(1.2,0.8,0.4),color.vec = c('#141B41','#0582CA','#8BA0B4'),palette.color = 6)
 }
 \seealso{
 \code{\link{plotHVT}}

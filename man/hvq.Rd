@@ -5,7 +5,9 @@
 \title{hvq}
 \usage{
 hvq(x, nclust = 3, depth = 3, quant.err = 10,
-  algorithm = c("Hartigan-Wong", "Lloyd", "Forgy", "MacQueen"))
+  algorithm = c("Hartigan-Wong", "Lloyd", "Forgy", "MacQueen"),
+  distance_metric = c("L1_Norm", "L2_Norm"), error_metric = c("mean",
+  "max"))
 }
 \arguments{
 \item{x}{Data Frame. A dataframe of multivariate data. Each row corresponds to an
@@ -22,6 +24,10 @@ tree (1 = no hierarchy, 2 = 2 levels, etc..)}
 \item{algorithm}{String. The type of algorithm used for quantization.
 Available algorithms are Hartigan and Wong, "Lloyd", "Forgy", "MacQueen".
 (default is "Hartigan-Wong")}
+
+\item{distance_metric}{character. The distance metric can be 'L1_Norm" or "L2_Norm". L1_Norm is selected by default.}
+
+\item{error_metric}{character. The error metric can be "mean" or "max". mean is selected by default}
 }
 \value{
 \item{clusters}{ List. A list showing each ID assigned to a cluster.
@@ -30,7 +36,7 @@ Available algorithms are Hartigan and Wong, "Lloyd", "Forgy", "MacQueen".
 \code{nodes.clust} with additional columns for nodes ID. }
 \item{error.quant}{ List. A list of quantization error for all levels and
 nodes. } \item{plt.clust}{ List. A list of logical values indicating if the
-quantization error was met. } \item{zdata}{ Summary. Output table with
+quantization error was met. } \item{summary}{ Summary. Output table with
 summary. }
 }
 \description{
@@ -52,10 +58,9 @@ hierarchically arranged vector quantized data.
 }
 \examples{
 
-data("iris",package="datasets")
-iris <- iris[,1:2]
-hvqOutput = hvq(iris, nclust = 2, depth = 3, quant.err = 0.3)
-
+data("USArrests",package="datasets")
+hvqOutput = hvq(USArrests, nclust = 2, depth = 3, quant.err = 0.2,
+distance_metric='L1_Norm',error_metric='mean')
 
 
 }

@@ -25,27 +25,32 @@
 #' @param algorithm String. The type of algorithm used for quantization.
 #' Available algorithms are Hartigan and Wong, "Lloyd", "Forgy", "MacQueen".
 #' (default is "Hartigan-Wong")
+#' @param distance_metric character. The distance metric can be 'L1_Norm" or "L2_Norm". L1_Norm is selected by default.
+#' @param error_metric character. The error metric can be "mean" or "max". mean is selected by default 
 #' @return \item{clusters}{ List. A list showing each ID assigned to a cluster.
 #' } \item{nodes.clust}{ List. A list corresponding to nodes' details. }
 #' \item{idnodes}{ List. A list of ID and segments similar to
 #' \code{nodes.clust} with additional columns for nodes ID. }
 #' \item{error.quant}{ List. A list of quantization error for all levels and
 #' nodes. } \item{plt.clust}{ List. A list of logical values indicating if the
-#' quantization error was met. } \item{zdata}{ Summary. Output table with
+#' quantization error was met. } \item{summary}{ Summary. Output table with
 #' summary. }
 #' @author Meet K. Dave <dave.kirankumar@@mu-sigma.com>
 #' @seealso \code{\link{hvtHmap}}
+#' @importFrom magrittr %>%
+#' @importFrom stats complete.cases
 #' @examples
 #' 
-#' data("iris",package="datasets")
-#' iris <- iris[,1:2]
-#' hvqOutput = hvq(iris, nclust = 2, depth = 3, quant.err = 0.3)
-#' 
+#' data("USArrests",package="datasets")
+#' hvqOutput = hvq(USArrests, nclust = 2, depth = 3, quant.err = 0.2,
+#' distance_metric='L1_Norm',error_metric='mean')
 #' 
 #' 
 #' @export hvq
 hvq <-
-  function (x, nclust = 3, depth = 3, quant.err = 10, algorithm = c("Hartigan-Wong", "Lloyd", "Forgy", "MacQueen")) {
+  function (x, nclust = 3, depth = 3, quant.err = 10, algorithm = c("Hartigan-Wong", "Lloyd", "Forgy", "MacQueen"),distance_metric = c("L1_Norm","L2_Norm"),error_metric = c("mean","max")) {
+    
+    requireNamespace("dplyr")
     
     rescl <- list()
     resid <- list()
@@ -58,7 +63,7 @@ hvq <-
     quantinit <- rep(F, nclust)
     # flog.info("Parameters are initialized")
     #outkinit will have centroids and datapoints and size of the cluster
-    outkinit <- getCentroids(x, kout = stats::kmeans(x, nclust, iter.max=100, algo=algorithm), nclust)
+    outkinit <- getCentroids(x, kout = stats::kmeans(x, nclust, iter.max=100, algorithm=algorithm), nclust,distance_metric=distance_metric,error_metric=error_metric)
     # flog.info("Level 1 cluster memberships are calculated")
     #datapoints grouped into clusters
     rescl[[1]] <- outkinit$val
@@ -97,7 +102,7 @@ hvq <-
           if (quantok[j] & NROW(initclust[[j]]) > nclust) {
             #k-means on the initclust to obtain the next level clustering(sub-clusters)
             outk <- getCentroids(initclust[[j]], kout = stats::kmeans(initclust[[j]], 
-                                                               nclust, iter.max = 100, algo = algorithm), nclust)
+                                                               nclust, iter.max = 100, algorithm = algorithm), nclust,distance_metric = distance_metric,error_metric = error_metric)
             #store the datapoints
             ijrescl[[j]] <- outk$val
             tet <- lapply(outk$val, row.names)
@@ -184,8 +189,8 @@ hvq <-
       ztab[(nclust + 1):sum(nclust^(1:zdepth)), 4] <- ztab2
       ztab[, 6: ncol(ztab)] <- t(ztab3upc)
       ztab[(nclust + 1): sum(nclust^(1: zdepth)), 5] <- ztabn
-      names(ztab) <- c("Segment Level", "Segment Parent", "Segment Child", 
-                       "n", "Quant Error", colnames(x))
+      names(ztab) <- c("Segment.Level", "Segment.Parent", "Segment.Child", 
+                       "n", "Quant.Error", colnames(x))
     }
     else {
       ztab <- data.frame(matrix(0, nrow = nclust, ncol = (ncol(x) + 
@@ -197,12 +202,22 @@ hvq <-
       ztab[, 6:ncol(ztab)] <- t(sapply(outkinit$val, colMeans, 
                                        na.rm = T))
       ztab[, 5] <- unlist(outkinit$cent)
-      names(ztab) <- c("Segment Level", "Segment Parent", "Segment Child", 
-                       "n", "Quant Error", colnames(x))
+      names(ztab) <- c("Segment.Level", "Segment.Parent", "Segment.Child", 
+                       "n", "Quant.Error", colnames(x))
     }
+    
+    ## Calculate compress percentage
+    compression_summary <- ztab %>% dplyr::group_by(Segment.Level) %>% dplyr::summarise(noOfCells = sum(!is.na(Quant.Error)), noOfCellsBelowQuantizationError = sum(Quant.Error < quant.err,na.rm = TRUE)) %>% dplyr::mutate(percentOfCellsBelowQuantizationErrorThreshold = (noOfCellsBelowQuantizationError/noOfCells))
+    
+    colnames(compression_summary)[1] <- "segmentLevel"
+    
+    if(any(is.nan(compression_summary$percentOfCellsBelowQuantizationErrorThreshold))){
+      compression_summary <- compression_summary[stats::complete.cases(compression_summary),]
+    }
+    
     ridnames <- resid
     rclnames <- rescl
     return(list(clusters = initclust, nodes.clust = rescl, idnodes = resid, 
-                error.quant = resm, plt.clust = resplt, ztab = ztab))
+                error.quant = resm, plt.clust = resplt, summary = ztab, compression_summary = compression_summary))
     
   }

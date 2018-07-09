@@ -17,65 +17,65 @@
 #' @author Meet K. Dave <dave.kirankumar@@mu-sigma.com>
 #' @seealso \code{\link{HVT}} \cr \code{\link{hvtHmap}}
 #' @keywords hplot
+#' @importFrom magrittr %>%
 #' @examples
 #' 
-#' 
-#' data("iris",package="datasets")
-#' iris <- iris[,1:2]
+#'
+#' data("USArrests",package="datasets")
+#'
 #' hvt.results <- list()
-#' hvt.results <- HVT(iris, nclust = 6, depth = 1, quant.err = 0.2, 
-#' projection.scale = 10, normalize = TRUE)
+#' hvt.results <- HVT(USArrests, nclust = 3, depth = 3, quant.err = 0.2, 
+#'                   projection.scale = 10, normalize = TRUE)
+#' plotHVT(hvt.results, line.width = c(1.2,0.8,0.4), color.vec = c('#141B41','#0582CA','#8BA0B4'))
 #' 
-#' plotHVT(hvt.results, line.width = c(3), color.vec = c("blue"))
-#' 
-#' hvt.results <- list()
-#' hvt.results <- HVT(iris, nclust = 6, depth = 3, quant.err = 0.2, 
-#' projection.scale = 10, normalize = TRUE)
-#' 
-#' 
-#' plotHVT(hvt.results, line.width = c(4,3), color.vec = c("red", "green"))
 #' 
 #' 
 #' @export plotHVT
 plotHVT <-
-function(hvt.results, line.width, color.vec, pch1 = 19, centroid.size = 3,title=NULL){
-  
-  # Split the screen for plot area and legend area
-  mymat <- rbind(c(0, 0.8, 0, 1), c(0.8, 1, 0.2, 0.8))
-  graphics::split.screen(mymat)
-  
-  # select the plot area
-  graphics::screen(1)
-  
-  del_results <- hvt.results[[1]]
-  parlevel <- length(del_results)
-  
-  if(length(line.width) == parlevel && length(color.vec) == parlevel){
+  function(hvt.results, line.width, color.vec, pch1 = 21, centroid.size = 3,title=NULL){
+    requireNamespace("ggplot2")
     
-  deldir::plot.deldir(del_results[[1]][[1]], wlines = "tess", lty = 1, lwd = line.width[1], xlab = " ", ylab = " ",main=title)
-  
-  for(lev in 1: length(del_results)){
-    for(lev1 in 1: length(del_results[[lev]])){
-      graphics::par(new=TRUE)
-      deldir::plot.deldir(del_results[[lev]][[lev1]], wlines = "tess", add = T, lty = 1, col = color.vec[lev], 
-                  lwd = line.width[lev], pch = pch1, cex = (centroid.size / lev))
+    # select the plot area
+    
+    del_results <- hvt.results[[1]]
+    parlevel <- length(del_results)
+    
+    if(length(line.width) == parlevel && length(color.vec) == parlevel){
+      
+      plot_gg <- ggplot2::ggplot()
+      
+      
+      for(lev in length(del_results):1){
+        #for(lev1 in 1: length(del_results[[lev]])){
+        #df = data.frame(del_results[[lev]][[lev1]]$summary$x,del_results[[lev]][[lev1]]$summary$y)
+        #colnames(df) <- c("x","y")
+        
+        
+        df_points <- do.call(rbind,lapply(del_results[[lev]],FUN = function(x) x$summary)) 
+        
+        seg_df <- do.call(rbind,lapply(del_results[[lev]],FUN = function(x) x$dirsgs)) %>% dplyr::mutate(Legend = paste("Level",lev)
+        )
+        
+        plot_gg <- plot_gg + ggplot2::geom_segment(ggplot2::aes_string(x="x1",y="y1",xend="x2",yend="y2",color="Legend"),
+                                                   size =line.width[lev],
+                                                   data = seg_df,
+                                                   linetype = 1
+        ) + ggplot2::scale_color_manual(values = color.vec) +
+          ggplot2::geom_point(data = df_points,
+                              ggplot2::aes_string(x="x",y="y"),
+                              pch=21,
+                              size =(centroid.size/(2^(lev-1))),
+                              fill = color.vec[lev],
+                              color = color.vec[lev]
+          ) + ggplot2::theme_bw() + ggplot2::theme(plot.background = ggplot2::element_blank()
+                                                   ,panel.grid.major = ggplot2::element_blank()
+                                                   ,panel.grid.minor = ggplot2::element_blank())
+        
+        
+      }
+      return(suppressMessages(plot_gg))
+    } else {
+      return("Length of color vector and line width vector should be 1 less than child level")
     }
+    
   }
-  
-  # select the legend area
-  graphics::screen(2)
-  
-  if(parlevel > 1){
-    for(j in 1: parlevel){
-      graphics::text(0.3,(0.8-(0.1*j)), paste("Level ", j))
-      graphics::segments(0.6,(0.8-(0.1*j)),0.8,(0.8-(0.1*j)),col=color.vec[j],lty=1,lwd=line.width[j])
-    }
-  } else {
-    graphics::text(0.3,0.7, paste("Level ", parlevel))
-    graphics::segments(0.6,0.7,0.8,0.7,col=color.vec[1],lty=1,lwd=line.width[1])
-  }
-  } else {
-    return("Length of color vector and line width vector should be 1 less than child level")
-  }
-  
-}
