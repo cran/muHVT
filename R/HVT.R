@@ -55,7 +55,6 @@ function (dataset, nclust, depth, quant.err, projection.scale, normalize = T,dis
     requireNamespace("MASS")         #sammon function
     requireNamespace("deldir")       #deldir function 
     requireNamespace("Hmisc")        #ceil function
-    #require(gtools)
     #require(seas)
     #require(mgcv)
     #require(spatstat)

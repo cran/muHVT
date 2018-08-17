@@ -77,7 +77,6 @@ function (hvt.results, dataset, child.level, hmap.cols, color.vec = NULL, line.w
     requireNamespace("MASS")
     requireNamespace("deldir")
     requireNamespace("dplyr")
-    #require(gtools)
     #require(seas)
   #  require(futile.logger)
     options(warn = -1)

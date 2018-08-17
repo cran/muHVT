@@ -39,8 +39,8 @@ options(expressions = 10000)
 
 
 
-#global_var <- nzchar(Sys.getenv("RUN_VIGNETTE"))
-global_var <- TRUE
+global_var <- nzchar(Sys.getenv("RUN_VIGNETTE"))
+#global_var <- TRUE
 
 scrolLimit <- function(noOfRows){
   if(noOfRows<10){
@@ -281,7 +281,7 @@ into further cells only if the quantization error of the cell is above quantizat
 
 * __`distance_metric`__	- The distance metric can be `L1_Norm` or `L2_Norm`. `L1_Norm` is selected by default. The distance metric is used to calculate the distance between a `n` dimensional point and centroid. The user can also pass a custom function to calculate the distance.
 
-* __`error_metric`__ - The error metric can be `mean` or `max`. `max` is selected by default.The `max` will return the max of `m` values. The `mean` will take mean of `m` values where each value is a distance between a point and centroid of the cell. Moreover, the user can also pass a custom function to calculate the error metric.
+* __`error_metric`__ - The error metric can be `mean` or `max`. The `max` will return the max of `m` values. The `mean` will take mean of `m` values where each value is a distance between a point and centroid of the cell. Moreover, the user can also pass a custom function to calculate the error metric.
 
 
 First we will perform hierarchical vector quantization at level 1 by setting the parameter depth to 1. Here level 1 signifies no hierarchy. Let's keep the no of cells as 15.

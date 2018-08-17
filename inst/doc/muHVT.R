@@ -22,8 +22,8 @@ options(expressions = 10000)
 
 
 
-#global_var <- nzchar(Sys.getenv("RUN_VIGNETTE"))
-global_var <- TRUE
+global_var <- nzchar(Sys.getenv("RUN_VIGNETTE"))
+#global_var <- TRUE
 
 scrolLimit <- function(noOfRows){
   if(noOfRows<10){
