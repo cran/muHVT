@@ -1,7 +1,7 @@
-#' hvtHmap
-#' 
 #' Heat Map over Hierarchical Voronoi Tessellations
-#' 
+#'
+#' Main function to construct heatmap overlay for hierarchical voronoi tessellations.
+#'
 #' The output of the \code{HVT} function has all the required information about
 #' the HVT. Now a heat map is overlayed over this HVT. The user defines the
 #' level and also those variables of the data for which the heat map is to be
@@ -21,7 +21,7 @@
 #' the hierarchies properly. In the second screen the gradient scale is
 #' plotted. The heat maps and hierarchical tessellations are obtained for all
 #' the desired variables.
-#' 
+#'
 #' @param hvt.results List. A list of hvt.results obtained from the HVT
 #' function.
 #' @param dataset Data frame. The input data set.
@@ -41,7 +41,7 @@
 #' @param palette.color Numeric. Indicating the heat map color palette. 1 -
 #' rainbow, 2 - heat.colors, 3 - terrain.colors, 4 - topo.colors, 5 -
 #' cm.colors, 6 - seas color. (default = 6)
-#' @param previous_level_heatmap Logical. If TRUE, the heatmap of previous level will be overlayed on the heatmap of selected level. If #' FALSE, the heatmap of only selected level will be plotted 
+#' @param previous_level_heatmap Logical. If TRUE, the heatmap of previous level will be overlayed on the heatmap of selected level. If #' FALSE, the heatmap of only selected level will be plotted
 #' @param show.points Logical. Indicating if the centroids should
 #' be plotted on the tesselations. (default = FALSE)
 #' @param asp Numeric. Indicating the aspect ratio type. For flexible aspect
@@ -52,286 +52,281 @@
 #' = NULL)
 #' @param label.size Numeric. The size by which the tessellation labels should
 #' be scaled. (default = 0.5)
+#' @param quant.error.hmap Numeric. A number indicating the quantization error
+#' treshold.
+#' @param nclust.hmap Numeric. An integer indicating the number of clusters per
+#' hierarchy (level)
 #' @param ... The ellipsis is passed to it as additional argument. (Used internally)
-#' @author Meet K. Dave <dave.kirankumar@@mu-sigma.com>
+#' @author Sangeet Moy Das <sangeet.das@@mu-sigma.com>
 #' @seealso \code{\link{plotHVT}}
 #' @keywords hplot
 #' @importFrom magrittr %>%
+#' @import ggplot2
 #' @examples
 #' data(USArrests)
 #' hvt.results <- list()
 #' hvt.results <- HVT(USArrests, nclust = 6, depth = 1, quant.err = 0.2, 
-#'                   projection.scale = 10, normalize = TRUE)
-#' hvtHmap(hvt.results, USArrests, child.level = 1,hmap.cols = 'Murder', line.width = c(0.2),
-#' color.vec = c('#141B41'),palette.color = 6)
+#'                    distance_metric = "L1_Norm", error_metric = "mean", 
+#'                    projection.scale = 10, normalize = TRUE)
+#' hvtHmap(hvt.results, USArrests, child.level = 1,hmap.cols = 'Murder', 
+#'         line.width = c(0.2), color.vec = c('#141B41'),palette.color = 6,
+#'         quant.error.hmap = 0.2,nclust.hmap = 6)
 #'
 #' hvt.results <- list()
 #' hvt.results <- HVT(USArrests, nclust = 3, depth = 3, quant.err = 0.2, 
-#'                   projection.scale = 10, normalize = TRUE)
-#' hvtHmap(hvt.results, train_computers, child.level = 3,hmap.cols = 'quant_error', 
-#' line.width = c(1.2,0.8,0.4),color.vec = c('#141B41','#0582CA','#8BA0B4'),palette.color = 6)
+#'                    distance_metric = "L1_Norm", error_metric = "mean", 
+#'                    projection.scale = 10, normalize = TRUE)
+#' hvtHmap(hvt.results, USArrests, child.level = 3,hmap.cols = 'Quant.Error',
+#'         line.width = c(1.2,0.8,0.4),color.vec = c('#141B41','#0582CA','#8BA0B4'),
+#'         palette.color = 6,quant.error.hmap = 0.2,nclust.hmap = 3)
 #' @export hvtHmap
+
+
 hvtHmap <-
-function (hvt.results, dataset, child.level, hmap.cols, color.vec = NULL, line.width = NULL, centroid.size = 3, pch = 21, palette.color = 6,previous_level_heatmap = T, show.points = F, asp = 1, ask = T, tess.label = NULL, label.size = .5,...)
+  function (hvt.results,
+            dataset,
+            child.level,
+            hmap.cols,
+            color.vec = NULL,
+            line.width = NULL,
+            centroid.size = 3,
+            pch = 21,
+            palette.color = 6,
+            previous_level_heatmap = TRUE,
+            show.points = FALSE,
+            asp = 1,
+            ask = TRUE,
+            tess.label = NULL,
+            quant.error.hmap = NULL,
+            nclust.hmap = NULL,
+            label.size = .5,
+            ...)
   {
-    requireNamespace("MASS")
-    requireNamespace("deldir")
-    requireNamespace("dplyr")
-    #require(seas)
-  #  require(futile.logger)
-    options(warn = -1)
-
+    hvt_list <- hvt.results
+    maxDepth <- child.level
+    summaryDF = hvt_list[[3]][["summary"]]
+    valuesDataframe <- data.frame(
+      depth = 0,
+      cluster = 0,
+      child = 0,
+      qe=0,
+      n_cluster=0,
+      value = 0
+    )
+    positionsDataframe <- data.frame(
+      depth = 0,
+      cluster = 0,
+      child = 0,
+      x = 0,
+      y = 0
+    )
     
+    centroidDataframe <- data.frame(x = 0, y = 0, lev = 0)
     
-    #select child level data
-    if(child.level > 1){
-      parlevel = child.level - 1
-    }else{
-      parlevel = 1
-    }
-    
-    tess_results <- hvt.results[[1]]
-    polinfo <- hvt.results[[2]]
-    hvq_k <- hvt.results[[3]]
-    hvqdata <- hvq_k$summary
-    
-    if(length(color.vec) == length(line.width) && (length(line.width)) == child.level){
-      
-      # flog.info("Lengths of color vector and line width vector is equal to the number of parent levels")
-      #select the data only for the user-defined level
-      # hvqztab <- hvqdata[which(hvqdata[, 1] == child.level), ]
-      # ncolumns <- ncol(hvqdata)
-      # 
-      # 
-      # 
-      # # select only the input columns
-      # if (class(hmap.cols) == "character") {
-      #   
-      #   if(length(list(...))){
-      #     
-      #     gradient_data <- hvqztab[,hmap.cols,drop=F]
-      #     get_indices_for_NA <- is.na(gradient_data)
-      #     if (any(get_indices_for_NA)) {
-      #       gradient_data[get_indices_for_NA, 1] <- 0
-      #     }
-      #     
-      #   }
-      #   
-      #   
-      #   else{
-      #   
-      #   if (hmap.cols == "quant_error") {
-      #     gradient_data <- hvqztab[, 5, drop = F]
-      #     gradient_data <- gradient_data[complete.cases(hvqztab),,drop=F]
-      #     # get_indices_for_NA <- is.na(gradient_data)
-      #     # if (any(get_indices_for_NA)) {
-      #     #   gradient_data[get_indices_for_NA, 1] <- 0
-      #     # }
-      #   }
-      #   
-      #   else if (hmap.cols == "no_of_points") {
-      #     gradient_data <- hvqztab[, 4, drop = F]
-      #     gradient_data <- gradient_data[complete.cases(hvqztab),,drop=F]
-      #     # get_indices_for_NA <- is.na(gradient_data)
-      #     # if (any(get_indices_for_NA)) {
-      #     #   gradient_data[get_indices_for_NA, 1] <- 0
-      #     # }
-      #   }
-      #     
-      #     
-      #   
-      #   else{
-      #     hmap.cols = which(colnames(dataset) == hmap.cols)
-      #     if (length(hmap.cols) == 0) {
-      #       stop("Column name for plotting heatmap incorrect")
-      #       }
-      # 
-      #   }
-      #   }
-      # }
-      # 
-      # if (is.numeric(hmap.cols)) {
-      #   column_no_for_hmap = hmap.cols
-      #   
-      #   if (length(column_no_for_hmap) == 0) {
-      #     stop("Column name for plotting heatmap incorrect")
-      #   }
-      #   
-      #   ## Get row index for all clusters in the asked child level
-      #   row_index_clusters = hvq_k$idnodes[[child.level]]
-      #   # Remove NULL
-      #   row_index_clusters <- Filter(Negate(is.null),row_index_clusters)
-      #   
-      #   depth <- 2
-      #   
-      #   if(child.level==1){
-      #     depth <- 1
-      #   }
-      #   
-      #   gradient_data <-
-      #     data.frame(unlist(
-      #       purrr::modify_depth(row_index_clusters, depth,  ~ colMeans(dataset[as.vector(.x[, 1]), column_no_for_hmap,drop=F]))
-      #     ))
-      #   colnames(gradient_data) <-
-      #     colnames(dataset[, column_no_for_hmap, drop = F])
-      # }
-      # 
-      # 
-      # #store the column names
-      # grad_scale <- gradient_data
-      gtitles <- 1
-      #different color palette
-      pal.col <- c("rainbow(500, start = .7, end = .1)", "heat.colors(500)", 
-                   "terrain.colors(500)", "topo.colors(500)", "cm.colors(500)", 
-                   "colorRampPalette(c(crp1,crp2,crp3,crp4,crp5))(500)","RColorBrewer::brewer.pal(n,name)")
-      
-      
-      # #select the five colors for two color gradient heat map
-      # crp1 <- "#0000FF"
-      # crp2 <- "#00FFFF"
-      # crp3 <- "#00FF00"
-      # crp4 <- "#FFFF00"
-      # crp5 <- "#FF0000"
-      # 
-      
-      
-      #for each variable in the hvqdata
-      for(i in 1: length(gtitles)){
-        #graphics::close.screen(all = T)
-        #tiles information of user-defined level. It is the output of tile.list.
-        #pdat <- polinfo[[child.level]]
-        #gradient of colors is divided into n colors
-        n <- 500
-
-        plot_gg <- ggplot2::ggplot() + ggplot2::theme_bw() +  ggplot2::theme(
-                                   plot.background = ggplot2::element_blank()
-                                  ,panel.grid.major = ggplot2::element_blank()
-                                  ,panel.grid.minor = ggplot2::element_blank())
-        #gradient_values = data.frame(grad_scale[,i,drop=FALSE])
-        gradient_palette = pal.col[palette.color]
+    for (depth in 1:maxDepth) {
+      if (depth < 3){
         
-        #call the function which plots the heat map for the user-defined level
-        if(previous_level_heatmap==T){
-          start.level = 1
-        }
-        else{
-          start.level = child.level
-        }
-        
-        for(current.child.level in start.level:child.level){
-          
-          
-          hvqztab <- hvqdata[which(hvqdata[, 1] == current.child.level), ]
-          ncolumns <- ncol(hvqdata)
-          
-          
-          
-          # select only the input columns
-          if (class(hmap.cols) == "character") {
-            
-            if(length(list(...))){
+        for (clusterNo in names(hvt_list[[2]][[depth]])) {
+          for (childNo in 1:length(hvt_list[[2]][[depth]][[clusterNo]])) {
+            if (!is.null(hvt_list[[2]][[depth]][[clusterNo]])) {
+              summaryFilteredDF <-
+                summaryDF %>% dplyr::filter(
+                  Segment.Level == depth,
+                  Segment.Parent == clusterNo,
+                  Segment.Child == childNo
+                )
               
-              gradient_data <- hvqztab[,hmap.cols,drop=F]
-              get_indices_for_NA <- is.na(gradient_data)
-              if (any(get_indices_for_NA)) {
-                gradient_data[get_indices_for_NA, 1] <- 0
-              }
+              current_cluster = hvt_list[[2]][[depth]][[clusterNo]][[childNo]]
+              
+              
+              val = summaryFilteredDF[, hmap.cols]
+              qe = summaryFilteredDF[, "Quant.Error"]
+              ncluster = summaryFilteredDF[, "n"]
+              x = as.numeric(current_cluster[["x"]])
+              y = as.numeric(current_cluster[["y"]])
+              
+              valuesDataframe <-
+                rbind(
+                  valuesDataframe,
+                  data.frame(
+                    depth = depth,
+                    cluster = clusterNo,
+                    child = childNo,
+                    qe=qe,
+                    n_cluster=ncluster,
+                    value = val
+                  )
+                )
+              positionsDataframe <-
+                rbind(
+                  positionsDataframe,
+                  data.frame(
+                    depth = rep(depth, length(x)),
+                    cluster = rep(clusterNo, length(x)),
+                    child =  rep(childNo, length(x)),
+                    x = x,
+                    y = y
+                  )
+                )
+              
+              centroidDataframe <-
+                rbind(centroidDataframe,
+                      data.frame(
+                        x =  as.numeric(current_cluster[["pt"]][["x"]]),
+                        y =  as.numeric(current_cluster[["pt"]][["y"]]),
+                        lev = depth
+                      ))
+              
+              
               
             }
             
-            
-            else{
+          }
+        }
+      
+      }else{
+        for (clusterNo in 1:nclust.hmap^(child.level-1)) {
+          for (childNo in 1:length(hvt_list[[2]][[depth]][[as.character(clusterNo)]])) {
+            if (!is.null(hvt_list[[2]][[depth]][[as.character(clusterNo)]])) {
+              summaryFilteredDF <-
+                summaryDF %>% dplyr::filter(
+                  Segment.Level == depth,
+                  Segment.Parent == clusterNo,
+                  Segment.Child == childNo
+                )
               
-              if (hmap.cols == "quant_error") {
-                gradient_data <- hvqztab[, 5, drop = F]
-                gradient_data <- gradient_data[complete.cases(gradient_data),,drop=F]
-                # get_indices_for_NA <- is.na(gradient_data)
-                # if (any(get_indices_for_NA)) {
-                #   gradient_data[get_indices_for_NA, 1] <- 0
-                # }
-              }
+              current_cluster = hvt_list[[2]][[depth]][[as.character(clusterNo)]][[childNo]]
               
-              else if (hmap.cols == "no_of_points") {
-                gradient_data <- hvqztab[, 4, drop = F]
-                gradient_data <- gradient_data[complete.cases(gradient_data),,drop=F]
-                # get_indices_for_NA <- is.na(gradient_data)
-                # if (any(get_indices_for_NA)) {
-                #   gradient_data[get_indices_for_NA, 1] <- 0
-                # }
-              }
+             
+              val = summaryFilteredDF[, hmap.cols]
+              qe = summaryFilteredDF[, "Quant.Error"]
               
+              x = as.numeric(current_cluster[["x"]])
+              y = as.numeric(current_cluster[["y"]])
               
+              valuesDataframe <-
+                rbind(
+                  valuesDataframe,
+                  data.frame(
+                    depth = depth,
+                    cluster = clusterNo,
+                    child = childNo,
+                    qe=qe,
+                    n_cluster=ncluster,
+                    value = val
+                  )
+                )
+              positionsDataframe <-
+                rbind(
+                  positionsDataframe,
+                  data.frame(
+                    depth = rep(depth, length(x)),
+                    cluster = rep(clusterNo, length(x)),
+                    child =  rep(childNo, length(x)),
+                    x = x,
+                    y = y
+                  )
+                )
               
-              else{
-                hmap.cols = which(colnames(dataset) == hmap.cols)
-                if (length(hmap.cols) == 0) {
-                  stop("Column name for plotting heatmap incorrect")
-                }
-                
-              }
+              centroidDataframe <-
+                rbind(
+                  centroidDataframe,
+                  data.frame(
+                    x =  as.numeric(current_cluster[["pt"]][["x"]]),
+                    y =  as.numeric(current_cluster[["pt"]][["y"]]),
+                    lev = depth
+                  )
+                )
             }
           }
-          
-          if (is.numeric(hmap.cols)) {
-            column_no_for_hmap = hmap.cols
-            
-            if (length(column_no_for_hmap) == 0) {
-              stop("Column name for plotting heatmap incorrect")
-            }
-            
-            ## Get row index for all clusters in the asked child level
-            row_index_clusters = hvq_k$idnodes[[current.child.level]]
-            # Remove NULL
-            row_index_clusters <- Filter(Negate(is.null),row_index_clusters)
-            
-            depth <- 2
-            
-            if(current.child.level==1){
-              depth <- 1
-            }
-            
-            gradient_data <-
-              data.frame(unlist(
-                purrr::modify_depth(row_index_clusters, depth,  ~ colMeans(dataset[as.vector(.x[, 1]), column_no_for_hmap,drop=F]))
-              ))
-            colnames(gradient_data) <-
-              colnames(dataset[, column_no_for_hmap, drop = F])
-          }
-          
-          
-          #store the column names
-          grad_scale <- gradient_data
-        
-        pdat <- polinfo[[current.child.level]]  
-          
-        plot_gg <- ggplotTileHmap(plot_gg,pdat,grad_scale,ptext = tess.label, polycol = gradient_palette, 
-                      close = T, showpoints = show.points,  
-                      lnwid = (line.width[1] / child.level),
-                      frame.plot = F, xlab = "", ylab = "", 
-                      asp = asp, label.size = label.size, 
-                      pointmag = (centroid.size / child.level),pch=pch)
         }
-        
-        #plot the centroids for parent levels
-        plot_gg <- ggplotTessHmap(plot_gg,hvt.results, line.width = line.width, color.vec = color.vec,pch=pch,child.level=child.level,show.points = show.points,centroid.size = centroid.size)
-        
-        #plot the polygons of the parent levels
-        # for(lev in parlevel: 1){   
-        #   len <- length(polinfo[[lev]])
-        #   for(ind1 in 1: len){
-        #     for(ind2 in 1: length(polinfo[[lev]][[ind1]])){
-        #      # graphics::polygon(polinfo[[lev]][[ind1]][[ind2]]$x, polinfo[[lev]][[ind1]][[ind2]]$y, 
-        #               #lwd = line.width[lev], border = color.vec[lev])
-        #       df_pol <- data.frame(x=polinfo[[lev]][[ind1]][[ind2]]$x,y=polinfo[[lev]][[ind1]][[ind2]]$y)
-        #       plot_gg <- plot_gg + ggplot2::geom_polygon(data = df_pol,mapping = ggplot2::aes_string(x="x",y="y"),size=line.width[lev],colour = color.vec[lev],fill=NA)
-        #     }
-        #   }
-        #   # flog.debug("Polygons for Level %s are drawn", lev)
-        # }
-  
-        return(suppressMessages(plot_gg))
       }
-    }else{
-      return("Length of color vector and line width vector should be equal to child level")
     }
+    valuesDataframe <- valuesDataframe[2:nrow(valuesDataframe), ]
+    
+    positionsDataframe <-
+      positionsDataframe[2:nrow(positionsDataframe), ]
+    
+    centroidDataframe <-
+      centroidDataframe[2:nrow(centroidDataframe), ]
+    
+    
+    datapoly <-
+      merge(valuesDataframe,
+            positionsDataframe,
+            by = c("depth", "cluster", "child"))
+    
+    p <- ggplot2::ggplot()
+    colour_scheme <- c("#6E40AA", "#6B44B2", "#6849BA", "#644FC1", "#6054C8", "#5C5ACE" ,"#5761D3" ,"#5268D8", "#4C6EDB", "#4776DE", "#417DE0", "#3C84E1" ,"#368CE1",
+                       "#3194E0", "#2C9CDF", "#27A3DC", "#23ABD8","#20B2D4", "#1DBACE", "#1BC1C9", "#1AC7C2" ,"#19CEBB", "#1AD4B3" ,"#1BD9AB", "#1DDFA3", "#21E39B",
+                       "#25E892", "#2AEB8A" ,"#30EF82", "#38F17B" ,"#40F373", "#49F56D", "#52F667", "#5DF662", "#67F75E", "#73F65A", "#7FF658", "#8BF457", "#97F357", "#A3F258")
+      data <- datapoly
+          if(child.level>1){
+            for(i in 1:(child.level-1)){
+            index_tess<-which(data$depth==i & data$qe>quant.error.hmap & data$n_cluster>3 )
+            data<-data[-index_tess,]
+    
+            rm(index_tess)
+            }
+          }
+      p <-
+        p +  ggplot2::geom_polygon(
+          data = data,
+          aes(
+            x = x,
+            y = y,
+            group = interaction(depth, cluster, child),
+            fill = value
+          )
+          
+        ) + 
+        scale_fill_gradientn(colours = colour_scheme ) +
+        labs(fill = hmap.cols)
+      
+      for (i in child.level:1 ) {
+      p <-
+        p +  ggplot2::geom_polygon(
+          data = datapoly[which(datapoly$depth==i),],
+          aes(
+            x = x,
+            y = y,
+            color = factor(depth),
+            size = factor(depth),
+            group = interaction(depth, cluster, child)
+            
+          ),
+          fill = NA
+        ) +
+        scale_colour_manual(values = color.vec)+
+        scale_size_manual(values=line.width,guide=FALSE) +
+        labs(color = "Level")}
+      
+    
+      
+      
+      
+    for (depth in 1:maxDepth) {
+      p <-  p + ggplot2::geom_point(
+        data = centroidDataframe[centroidDataframe["lev"] == depth, ],
+        aes(x = x, y = y),
+        size = (centroid.size / (2 ^ (depth - 1))),
+        fill = color.vec[depth],
+        color = color.vec[depth]
+      ) + ggplot2::theme(plot.background = ggplot2::element_blank()
+                           ,plot.title = element_text(
+                             size = 20,
+                             hjust = 0.5,
+                             margin = margin(0, 0, 20, 0)
+                           )
+                           ,panel.grid = ggplot2::element_blank()
+                           ,panel.border = ggplot2::element_blank()
+                           ,axis.ticks = element_blank()
+                           ,axis.text = element_blank()
+                           ,axis.title = element_blank()
+                           ,panel.background = element_blank())+
+      scale_x_continuous(expand = c(0, 0)) +
+        scale_y_continuous(expand = c(0, 0))
+    }
+     
+    return(suppressMessages(p))
   }

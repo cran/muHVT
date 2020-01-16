@@ -1,7 +1,7 @@
 #' Constructing Hierarchical Voronoi Tessellations
-#' 
+#'
 #' Main function to construct hierarchical voronoi tessellations.
-#' 
+#'
 #' This is the main function to construct hierarchical voronoi tessellations.
 #' The \code{hvq} function is called from this function. The output of the
 #' \code{hvq} function is hierarchical clustered data which will be the input
@@ -12,7 +12,7 @@
 #' plotted using these transformed points as centroids. The lines in the
 #' tessellations are chopped in places so that they do not protrude outside the
 #' parent polygon. This is done for all the subsequent levels.
-#' 
+#'
 #' @param dataset Data frame. A data frame with different columns is given as
 #' input.
 #' @param nclust Numeric. An integer indicating the number of clusters per
@@ -26,56 +26,69 @@
 #' @param normalize Logical. A logical value indicating if the columns in your
 #' dataset should be normalized. Default value is TRUE.
 #' @param distance_metric character. The distance metric can be 'Euclidean" or "Manhattan". Euclidean is selected by default.
-#' @param error_metric character. The error metric can be "mean" or "max". mean is selected by default 
+#' @param error_metric character. The error metric can be "mean" or "max". mean is selected by default
 #' @return A list that contains the hierarchical tesselation information. This
 #' list has to be given as input argument to plot the tessellations.
 #' \item{[[1]] }{List. Information about the tesselation co-ordinates - level
 #' wise} \item{[[2]] }{List. Information about the polygon co-ordinates - level
 #' wise} \item{[[3]] }{List. Information about the hierarchical vector
 #' quantized data - level wise}
-#' @author Meet K. Dave <dave.kirankumar@@mu-sigma.com>
+#' @author Sangeet Moy Das <sangeet.das@@mu-sigma.com>
 #' @seealso \code{\link{plotHVT}} \cr \code{\link{hvtHmap}}
 #' @keywords hplot
+#' @import ggplot2
 #' @importFrom magrittr %>%
+#' @importFrom stats sd
+#' @importFrom purrr map
 #' @examples
 #' data(USArrests)
 #' hvt.results <- list()
-#' hvt.results <- HVT(USArrests, nclust = 6, depth = 1, quant.err = 0.2, 
-#'                   projection.scale = 10, normalize = TRUE)
-#' plotHVT(hvt.results, line.width = c(0.8), color.vec = c('#141B41'))
+#' hvt.results <- HVT(USArrests, nclust = 15, depth = 1, quant.err = 0.2, 
+#'                    distance_metric = "L1_Norm", error_metric = "mean",
+#'                    projection.scale = 10, normalize = TRUE)
+#' plotHVT(hvt.results, line.width = c(0.8), color.vec = c('#141B41'), 
+#'         maxDepth = 1)
 #'
 #' hvt.results <- list()
 #' hvt.results <- HVT(USArrests, nclust = 3, depth = 3, quant.err = 0.2, 
-#'                   projection.scale = 10, normalize = TRUE)
-#' plotHVT(hvt.results, line.width = c(1.2,0.8,0.4), color.vec = c('#141B41','#0582CA','#8BA0B4'))
+#'                    distance_metric = "L1_Norm", error_metric = "mean",
+#'                    projection.scale = 10, normalize = TRUE)
+#' plotHVT(hvt.results, line.width = c(1.2,0.8,0.4), color.vec = c('#141B41','#0582CA','#8BA0B4'), 
+#'         maxDepth = 3)
 #' @export HVT
 HVT <-
-function (dataset, nclust, depth, quant.err, projection.scale, normalize = T,distance_metric = c("L1_Norm","L2_Norm"),error_metric = c("mean","max")) {
-
-    requireNamespace("MASS")         #sammon function
-    requireNamespace("deldir")       #deldir function 
+  function (dataset, nclust = 15, depth=3, quant.err=0.2, projection.scale=10, normalize = TRUE,distance_metric = c("L1_Norm","L2_Norm"),error_metric = c("mean","max")) {
+    
+    
+    requireNamespace("deldir")       #deldir function
+    requireNamespace("stats")        #sd function
     requireNamespace("Hmisc")        #ceil function
-    #require(seas)
-    #require(mgcv)
-    #require(spatstat)
     requireNamespace("grDevices")    #chull function
-    requireNamespace("splancs")      #csr function 
+    requireNamespace("splancs")      #csr function
     requireNamespace("sp")           #point.in.polygon function
     requireNamespace("conf.design")  #factorize function
+    requireNamespace("purrr")        #map function
+    requireNamespace("dplyr")        #group_by function
     
-    options(warn = -1)
-    
+
     dataset <- as.data.frame(dataset)
+    dataset <-dataset[complete.cases(dataset), ]
+    dataset <- dataset[,colnames(dataset)[purrr::map_lgl(dataset,~is.numeric(.x))]]
+    nums <- unlist(lapply(dataset, function(x){ is.numeric(x) & !sd(x) == 0  }))
+    dataset<- dataset[, nums]
     
+    
+    
+    dataset <- as.data.frame(sapply(dataset[,1:length(dataset[1,])], as.numeric))
     if(normalize){
-      scaledata <- scale(dataset, scale = T, center = T)
+      scaledata <- scale(dataset, scale = TRUE, center = TRUE)
       rownames(scaledata) <- rownames(dataset)
-      
+
       mean_data <- attr(scaledata,"scaled:center")
       std_data <- attr(scaledata,"scaled:scale")
-      
+
       scale_summary <- list(mean_data=mean_data,std_data=std_data)
-      
+
       # flog.info("scaling is done")
     }else{
       scaledata <- as.matrix(dataset)
@@ -83,19 +96,19 @@ function (dataset, nclust, depth, quant.err, projection.scale, normalize = T,dis
       # flog.info("The data is not scaled as per the user requirement")
       scale_summary <- NULL
     }
-    
+
     polinfo <- hvqdata <- list()
     hvq_k <- hvq(scaledata, nclust = nclust, depth = depth, quant.err = quant.err,distance_metric = distance_metric,error_metric = error_metric)
     # flog.info("HVQ output is ready")
     hvqoutput <- hvq_k$summary
-    
+
     gdata <- hvqoutput  #assign the output of hvq file to gdata
     #cleaning the data by deleting the rows containing NA's
     #gdata <- gdata[-which(is.na(gdata[, 5])), ]
     gdata <- hvqoutput[stats::complete.cases(hvqoutput),]
     hvqdata <- gdata
     # flog.info("NA's are removed from the HVQ output")
-    
+
     #to store hvqdata according to each level
     tessdata <- input.tessdata <- list()
     #stores sammon co-ordinates and segregated according to each level
@@ -110,82 +123,128 @@ function (dataset, nclust, depth, quant.err, projection.scale, normalize = T,dis
     nlevel <- length(unique(gdata[, "Segment.Level"]))
     #verify if the transformed points are correct
     transpoints <- list()
-    
+
     # New columns added to the dataset by the hvq function
     newcols <-  ncol(hvqoutput) - ncol(dataset)
-    
-    for (i in 1: nlevel) {
-      
+    # Variable to store information on mapping 
+    par_map <- list()
+    for (i in 1: nlevel){
       #hvqdata segregated according to different levels
       tessdata[[i]] <- gdata[which(gdata[, "Segment.Level"] == i), ]
       
       #data to be used as input to sammon function
-      input.tessdata[[i]] <- tessdata[[i]][, (newcols+1): ncol(hvqoutput)]
-      
-      #sammon function output is 2d coordinates which are saved level-wise
-      points2d[[i]] <- projection.scale * (MASS::sammon(stats::dist(unique(input.tessdata[[i]])),niter = 10^5,trace=FALSE)$points)
-      
-      #sammon datapoints grouped according to the hierarchy
+      # input.tessdata[[i]] <- tessdata[[i]][, (newcols+1): ncol(hvqoutput)]
+      # d<-cmdscale()
+    }
+    counter<-c(1:nlevel)
+
+    sammon_par<-function(x){10 * (MASS::sammon(d=stats::dist(unique(tessdata[[x]][, (newcols+1): ncol(hvqoutput)])),niter = 10^5,trace=FALSE)$points)}
+    points2d<-lapply(counter,sammon_par)
+
+    
+    for (i in 1: nlevel) {
+
+      # #hvqdata segregated according to different levels
+      # tessdata[[i]] <- gdata[which(gdata[, "Segment.Level"] == i), ]
+      # 
+      # #data to be used as input to sammon function
+      # input.tessdata[[i]] <- tessdata[[i]][, (newcols+1): ncol(hvqoutput)]
+      # 
+      # #sammon function output is 2d coordinates which are saved level-wise
+      # points2d[[i]] <- projection.scale * (MASS::sammon(stats::dist(unique(input.tessdata[[i]])),niter = 10^5,trace=FALSE)$points)
+      # 
+      # #sammon datapoints grouped according to the hierarchy
       intermediate.rawdata <- list()
-      
-      for(j in 1: length(unique(tessdata[[i]][, "Segment.Parent"]))) {
-        intermediate.rawdata[[j]] <- cbind(points2d[[i]][((nclust * (j - 1)) + 1): (j * nclust), 1], 
-                                           points2d[[i]][((nclust * (j - 1)) + 1): (j * nclust), 2])
+      rn = row.names(points2d[[i]])
+      vec = as.integer(rn) - sum(nclust^(0:(i-1))) + 1
+
+      # for(j in 1: length(unique(tessdata[[i]][, "Segment.Parent"]))) {
+      index = 1
+      for(j in unique(tessdata[[i]][, "Segment.Parent"])) {
+        # print(((nclust * (j - 1)) + 1): (j * nclust))
+        # intermediate.rawdata[[j]] <- cbind(points2d[[i]][((nclust * (j - 1)) + 1): (j * nclust), 1],
+        #                                    points2d[[i]][((nclust * (j - 1)) + 1): (j * nclust), 2])
+        if(any(dplyr::between(j - vec/nclust,0,0.9999))){
+          intermediate.rawdata[[index]] <- cbind(points2d[[i]][rn[dplyr::between(j - vec/nclust,0,0.9999)], 1],
+                                             points2d[[i]][rn[dplyr::between(j - vec/nclust,0,0.9999)], 2])
+          index = index + 1
+        }
       }
       rawdeldata[[i]] <- intermediate.rawdata
-      
+
     }
     rm(intermediate.rawdata)
     # flog.info("Sammon points for all the levels have been calculated")
-    
+
     #new_rawdeldata contains the transformed points of rawdeldata
     new_rawdeldata[[1]] <- rawdeldata[[1]]
-    
+
     #deldat1 is the output of the deldir::deldir function and contains the tessellation information
     deldat1 <- deldat2 <- list()
     #deldir function of deldir package gives the tessellations output
-    deldat2[[1]] <- deldir::deldir(new_rawdeldata[[1]][[1]][, 1], 
+    deldat2[[1]] <- deldir::deldir(new_rawdeldata[[1]][[1]][, 1],
                            new_rawdeldata[[1]][[1]][, 2])
     deldat1[[1]] <- deldat2
     rm(deldat2)
     # flog.info("Tessellations are calculated for the first level")
     #plotting the tessellation
     #plot(deldat1[[1]][[1]], wlines = "tess", lty = 1, lwd = 4)
-    
+
     #polygon_info stores parent tile vertices information
     #polygon_info is the modified tile.list output except for first level.
     pol_info[[1]] <- deldir::tile.list(deldat1[[1]][[1]])
+    
+    #loop throught the polygon and  add the row name as id varible
+    # row names of info in rawdeldata is preserved from the hvqoutput and this row name ties the rawdeldata back to the hierarchy 
+    # in the hvqoutput dataset
+    pol_info[[1]] <- mapply(function(info,id){
+      info$id = as.numeric(id)
+      info <- append(info,as.list(gdata[row.names(gdata)==id,c('Segment.Level','Segment.Parent','Segment.Child')]))
+      return(info)
+    },pol_info[[1]],as.list(row.names(new_rawdeldata[[1]][[1]])),SIMPLIFY = FALSE)
+    
     polygon_info[[1]] <- pol_info
     rm(pol_info)
     par_tile_indices <- n_par_tile <- list()
     par_tile_indices[[1]] <- unique(tessdata[[1]][, "Segment.Parent"])
     n_par_tile[[1]] <- length(unique(tessdata[[1]][, "Segment.Parent"]))
-    
+
     if(nlevel < 2){
       polinfo <- polygon_info
-      
+
       fin_out <- list()
-      
+
       fin_out[[1]] <- deldat1
       fin_out[[2]] <- polinfo
       fin_out[[3]] <- hvq_k
       fin_out[[3]][['scale_summary']] <- scale_summary
-      
+     level=1
+     level_names <- list()
+        level_names[[level]] <- fin_out[[2]][[level]] %>% map( ~ {
+          this <- .
+          element <- this[[1]]
+          return(element$Segment.Parent)
+        }) %>% unlist()
+        
+        names(fin_out[[2]][[level]]) <- level_names[[level]]
       
       return(fin_out)
-      
+
     } else {
       for(i in 2: nlevel){
-        
-        new_rawdeldata[[i]] <- list() 
+
+        new_rawdeldata[[i]] <- list()
         par_tile_indices[[i]] <- unique(tessdata[[i]][, "Segment.Parent"])
         n_par_tile[[i]] <- length(unique(tessdata[[i]][, "Segment.Parent"]))
+        par_map[[i-1]] <- list()
         
         for(tileIndex in 1: n_par_tile[[(i - 1)]]){
+          # print(tileIndex)
           #a chunk of hvqdata which contains the rows corresponding to a particular parent tile
-          gidata <- tessdata[[i]][which(tessdata[[i]][, "Segment.Parent"] %in% 
-                                          par_tile_indices[[i]][intersect(which((par_tile_indices[[i]] / nclust ) <= par_tile_indices[[(i - 1)]][tileIndex]),
-                                                                          which((par_tile_indices[[(i - 1)]][tileIndex] - 1) < (par_tile_indices[[i]] / nclust )))]), ]
+          gi_par_tiles <- par_tile_indices[[i]][intersect(which((par_tile_indices[[i]] / nclust ) <= par_tile_indices[[(i - 1)]][tileIndex]),
+                                          which((par_tile_indices[[(i - 1)]][tileIndex] - 1) < (par_tile_indices[[i]] / nclust )))]
+          gidata <- tessdata[[i]][which(tessdata[[i]][, "Segment.Parent"] %in% gi_par_tiles), ]
+          par_map[[i-1]][[par_tile_indices[[(i - 1)]][tileIndex]]] <- gi_par_tiles
           
           #datapoints corresponding to a particular parent tile
           rawdeldati <- rawdeldata[[i]][intersect(which((par_tile_indices[[i]] / nclust ) <= par_tile_indices[[(i - 1)]][tileIndex]),
@@ -202,40 +261,46 @@ function (dataset, nclust, depth, quant.err, projection.scale, normalize = T,dis
               return(deldat1)
               #return("Projection is not scaled enough and the polygon is very small to perform transformation")
             }
-            
+
           }
         }
         # flog.info("Sammon points of level %s are transformed", i)
-        
+
         deldat2 <- list()
         par_tile_polygon <- list()
+        #?
         for(tileNo in 1: n_par_tile[[i]]){
-          
+          # print(tileNo)
           #modulus operation for the last index in polygon_info
           if(((par_tile_indices[[i]][tileNo]) %% nclust)){
             last_index <- (par_tile_indices[[i]][tileNo] %% nclust)
           }else{
             last_index <- nclust
           }
+          
           #divide to get the parent tile
           sec_index <- Hmisc::ceil(par_tile_indices[[i]][tileNo] / nclust)
-          
-          deldat2[[tileNo]] <- deldir::deldir(new_rawdeldata[[i]][[tileNo]][, 1], 
-                                      new_rawdeldata[[i]][[tileNo]][, 2], 
+
+          deldat2[[tileNo]] <- deldir::deldir(new_rawdeldata[[i]][[tileNo]][, 1],
+                                      new_rawdeldata[[i]][[tileNo]][, 2],
                                       rw = c(range(polygon_info[[(i - 1)]][[which(par_tile_indices[[(i - 1)]] == sec_index)]][[last_index]]$x) - c(0.5, -0.5),
                                              range(polygon_info[[(i - 1)]][[which(par_tile_indices[[(i - 1)]] == sec_index)]][[last_index]]$y) - c(0.5, -0.5)))
+          
+          #CORRECT ROW NAMES
+          deldat2[[tileNo]]$rownames.orig <- as.numeric(row.names(new_rawdeldata[[i]][[tileNo]]))
+          
           #constructing parent polygons
           par_tile_polygon[[tileNo]] <- matrix(c(polygon_info[[(i - 1)]][[which(par_tile_indices[[(i - 1)]] == sec_index)]][[last_index]]$x,
                                                  polygon_info[[(i - 1)]][[which(par_tile_indices[[(i - 1)]] == sec_index)]][[last_index]]$y),
-                                               ncol = 2, byrow = F )
+                                               ncol = 2, byrow = FALSE )
           #correct the tessellations
           cur_dirsgs <- deldat2[[tileNo]]$dirsgs
           cur_tile <- polygon_info[[(i - 1)]][[which(par_tile_indices[[(i - 1)]] == sec_index)]][[last_index]]
           cur_polygon <- par_tile_polygon[[tileNo]]
-          verify_dirsgs <- Corrected_Tessellations(cur_dirsgs, 
-                                                   cur_tile, 
+          verify_dirsgs <- Corrected_Tessellations(cur_dirsgs,
+                                                   cur_tile,
                                                    cur_polygon)
-          
+
           #polygon is sufficient to calculate next level tessellations inside this
           if(all(verify_dirsgs[,1:8] != "-1")){
             deldat2[[tileNo]]$dirsgs <- verify_dirsgs
@@ -247,12 +312,12 @@ function (dataset, nclust, depth, quant.err, projection.scale, normalize = T,dis
             return(deldat1)
             #return("Projection is not scaled enough to perform tessellations for the next level")
           }
-          
+
           #delete lines with both the points identical
           new_dirsgs <- deldat2[[tileNo]]$dirsgs
           del_rows <- 0
           for (j in 1: nrow(new_dirsgs)) {
-            if (round(new_dirsgs[j, "x1"], 6) == round(new_dirsgs[j, "x2"], 6) && 
+            if (round(new_dirsgs[j, "x1"], 6) == round(new_dirsgs[j, "x2"], 6) &&
                   round(new_dirsgs[j, "y1"], 6) == round(new_dirsgs[j, "y2"], 6)) {
               del_rows <- c(del_rows, j)
             }
@@ -263,17 +328,23 @@ function (dataset, nclust, depth, quant.err, projection.scale, normalize = T,dis
           deldat2[[tileNo]]$dirsgs <- new_dirsgs
           # flog.info("Line with same endpoints are deleted")
         }
-        
+
         deldat1[[i]] <- deldat2
-        
+
         polygon_info[[i]] <- list()
         #polygon information to correct the polygons
         for(parentIndex in 1: n_par_tile[[i]]){
           polygon_info[[i]][[parentIndex]] <- suppressMessages(deldir::tile.list(deldat1[[i]][[parentIndex]]))
+          # Add id corresponding to each segment from rownames.orig information
+          polygon_info[[i]][[parentIndex]] <- mapply(function(info,id){
+            info$id = as.numeric(id)
+            info <- append(info,as.list(gdata[row.names(gdata)==id,c('Segment.Level','Segment.Parent','Segment.Child')]))
+            return(info)
+          },polygon_info[[i]][[parentIndex]],as.list(deldat1[[i]][[parentIndex]]$rownames.orig),SIMPLIFY = FALSE) 
         }
-        
+
         #to delete the points which are outside the parent tile
-        
+
         for (parentIndex in 1: length(polygon_info[[i]])) {
           for (tileIndex in 1: length(polygon_info[[i]][[parentIndex]])) {
             tile <- polygon_info[[i]][[parentIndex]][[tileIndex]]
@@ -284,7 +355,7 @@ function (dataset, nclust, depth, quant.err, projection.scale, normalize = T,dis
           }
         }
         # flog.info("Endpoints of tessellation lines which are outside parent polygon are deleted")
-        
+
         for (parentIndex in 1: n_par_tile[[i]]) {
           #modulo operation to obtain the last index
           if(((par_tile_indices[[i]][parentIndex]) %% nclust)){
@@ -294,23 +365,46 @@ function (dataset, nclust, depth, quant.err, projection.scale, normalize = T,dis
           }
           #divide to get second index
           sec_index <- Hmisc::ceil(par_tile_indices[[i]] / nclust)[parentIndex]
-          
-          polygon_info[[i]][[parentIndex]] <- Add_boundary_points(polygon_info[[i]][[parentIndex]], 
+
+          polygon_info[[i]][[parentIndex]] <- Add_boundary_points(polygon_info[[i]][[parentIndex]],
                                                                   polygon_info[[(i - 1)]][[which(par_tile_indices[[(i - 1)]] == sec_index)]][[last_index]],
                                                                   new_rawdeldata[[i]][[parentIndex]])
         }
         # flog.info("Vertices of parent tile are added to appropriate child tile")
       }
-      
+
       polinfo <- polygon_info
       
-      fin_out <- list()
+      # par_map <- reshape2::melt(par_map)
+      # colnames(par_map) <- c('Child','Parent','Level')
+      # par_map <- par_map %>% mutate(ChildNo = (Parent-1)*nclust+Child)
       
+      fin_out <- list()
+
       fin_out[[1]] <- deldat1
       fin_out[[2]] <- polinfo
       fin_out[[3]] <- hvq_k
       fin_out[[3]][['scale_summary']] <- scale_summary
+      # fin_out[[4]] <- par_map
+      level_names <- list()
       
+      for (level in 1:nlevel) {
+        level_names[[level]] <- fin_out[[2]][[level]] %>% map( ~ {
+          this <- .
+          element <- this[[1]]
+          return(element$Segment.Parent)
+        }) %>% unlist()
+        
+        names(fin_out[[2]][[level]]) <- level_names[[level]]
+      }
+      
+      # fin_out <- correctedBoundaries(fin_out,nlevel)
+      
+      emptyParents  <- depth - length(fin_out[[2]])
+      for(i in 1:emptyParents){
+        fin_out[[2]][[length(fin_out[[2]])+1]] <- list()
+      }
       return(fin_out)
     }
+
   }
