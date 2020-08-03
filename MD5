@@ -1,4 +1,4 @@
-f53c6ffc06df498fcdfaeb135eb7ada9 *DESCRIPTION
+3543baab283dd80889bac22a3e6d521d *DESCRIPTION
 46b9d2772f16edaa90d067d9deb00f79 *NAMESPACE
 fd8751b7ced2f3e46b90c2b45f7f24fb *R/Add_boundary_points.R
 6e7eb5e594cd9b21207d1433bbec339d *R/Corrected_Tessellations.R
@@ -16,11 +16,11 @@ f7ebba1cb9014b2240cf1a5f5c70f83a *R/hvtHmap.R
 c4beda987d2d387b1089b32278c47829 *R/plotHVT.R
 ac8bd8b00dca56501d2c7b12abdcbf45 *R/predictHVT.R
 6f493432837bca16e56f2b70fb3fede1 *R/sammonsProjection.R
-a6931ff2b273a4b0df6865be723a3039 *README.md
-b6606bf31574df67034735f151294e1d *build/vignette.rds
-cdc60cb9f5aacc794680b39f63d6b9cc *inst/doc/muHVT.R
-c7e45fad3f11e7113f7cb66aed754e48 *inst/doc/muHVT.Rmd
-95accbf4f2c63a8ff845c8db94cb43d0 *inst/doc/muHVT.html
+576fcf6ef9899b578bf4160dd0e9ef31 *README.md
+3be6ca40eed0415a36c65af7aabb457e *build/vignette.rds
+5dd89aa8b52cadd713399097df35c285 *inst/doc/muHVT.R
+225ce5d9daceba8bcb4a9fd3f228f17d *inst/doc/muHVT.Rmd
+c55a8e32114fbc2bc5c040c213cd9e5e *inst/doc/muHVT.html
 365698996168da20e128778472d60974 *man/HVT.Rd
 77f09d85cd782ea34f5cc17c755488b0 *man/VQ_codebookSplit.Rd
 5e7a2c80e7c28a89ae764eee2efb87ad *man/getOptimalCentroids.Rd
@@ -31,6 +31,6 @@ a9b3ce8a6965f004c79346d0c55cff7d *man/plotHVT.Rd
 815687161965ca36904d30e36002b397 *man/sammonsProjection.Rd
 b1538385f9919a416e86689279f0f6d4 *tests/testthat.R
 c50c016805b0394bde184c48ba1ddab5 *tests/testthat/testhvq.R
-c7e45fad3f11e7113f7cb66aed754e48 *vignettes/muHVT.Rmd
+225ce5d9daceba8bcb4a9fd3f228f17d *vignettes/muHVT.Rmd
 cd4f4dc371727ed3dfbb6af90010a293 *vignettes/quant_explainer.png
 91833b57e2ad47beaaa1b37be4eb61d4 *vignettes/torus.png
