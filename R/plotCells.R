@@ -1,9 +1,11 @@
-#' @name plotHVT
-#' @title Plot the hierarchical tesselations.
+#' @name plotCells
+#' @title Plot the identified outlier cell(s) in the voronoi tessellations map.
 #' 
-#' Main plotting function to construct hierarchical voronoi tessellations.
+#' Plotting function to construct hierarchical voronoi tessellations and highlight the cells using the 
+#' compressed HVT map.
 #'
-#' @param hvt.results List. A list containing the ouput of \code{HVT} function
+#' @param plot.cells Vector. A vector indicating the cells to be highlighted in the map
+#' @param hvt.map List. A list containing the output of \code{HVT} function
 #' which has the details of the tessellations to be plotted.
 #' @param line.width Numeric Vector. A vector indicating the line widths of the
 #' tessellation boundaries for each level.
@@ -15,40 +17,31 @@
 #' tessellations. (default = 3)
 #' @param title String. Set a title for the plot. (default = NULL)
 #' @param maxDepth Numeric. An integer indicating the number of levels. (default = NULL)
-#' @author Shubhra Prakash <shubhra.prakash@@mu-sigma.com>, Sangeet Moy Das <sangeet.das@@mu-sigma.com>
+#' @author Shantanu Vaidya <shantanu.vaidya@@mu-sigma.com>
 #' @seealso \code{\link{HVT}} \cr \code{\link{hvtHmap}}
 #' @keywords hplot
 #' @importFrom magrittr %>%
 #' @import ggplot2
-#' @examples
-#'
-#' data("USArrests",package="datasets")
-#'
-#' hvt.results <- list()
-#' hvt.results <- HVT(USArrests, n_cells = 15, depth = 1, quant.err = 0.2, 
-#'                    distance_metric = "L1_Norm", error_metric = "mean",
-#'                    projection.scale = 10, normalize = TRUE,
-#'                    quant_method="kmeans",diagnose=TRUE)
-#' plotHVT(hvt.results, line.width = c(0.8), color.vec = c('#141B41'), 
-#'         maxDepth = 1)
-#'
-#' @export plotHVT
+#' 
+#' @export plotCells
 
-library(ggplot2)
-plotHVT <-
-  function(hvt.results,
-           line.width,
-           color.vec,
+
+# library(ggplot2)
+plotCells <-
+  function(plot.cells,
+           hvt.map,
+           line.width = c(0.6),
+           color.vec = c("#141B41"),
            pch1 = 21,
-           centroid.size = 1.5,
+           centroid.size = 0.5,
            title = NULL,
-           maxDepth=NULL) {
+           maxDepth = 1) {
     # browser()
     
-    hvt_list <- hvt.results
+    hvt_list <- hvt.map
+    outlier_cell_k = plot.cells
     
     maxDepth = min(maxDepth,max(hvt_list[[3]][["summary"]] %>% stats::na.omit() %>% dplyr::select("Segment.Level")))
-    
     
     min_x = 1e9
     min_y = 1e9
@@ -82,7 +75,6 @@ plotHVT <-
       
     }
     
-    
     for (depth in 1:maxDepth) {
       for (clusterNo in 1:length(hvt_list[[2]][[depth]])) {
         for (childNo in 1:length(hvt_list[[2]][[depth]][[clusterNo]])) {
@@ -105,10 +97,15 @@ plotHVT <-
       }
     }
     
+    # outlier_cell_k = c(53)
+  
+    
     valuesDataframe <- data.frame(depth = depthVal,
                                   cluster = clusterVal,
                                   child = childVal)
-    
+    valuesDataframe <- valuesDataframe %>% 
+      dplyr::mutate(outlier_cell = ifelse((child %in% outlier_cell_k),
+                                          "Outlier_Cell", ""))
     
     positionsDataframe <- data.frame(
       depth = depthPos,
@@ -127,20 +124,35 @@ plotHVT <-
             positionsDataframe,
             by = c("depth", "cluster", "child"))
     
+    datapoly_outlier_cell <- datapoly[which(datapoly$outlier_cell == "Outlier_Cell"), ]
+    datapoly_non_outlier_cell <- datapoly[which(datapoly$outlier_cell != "Outlier_Cell"), ]
+    
     
     p <- ggplot2::ggplot()
     
     for (i in maxDepth:1) {
       p <-
-        p +  ggplot2::geom_polygon(
-          data = datapoly[which(datapoly$depth == i), ],
+        p + ggplot2::geom_polygon(
+          data = datapoly_outlier_cell[which(datapoly_outlier_cell$depth == i), ],
           ggplot2::aes(
             x = x,
             y = y,
             color = factor(depth),
             size = factor(depth),
             group = interaction(depth, cluster, child),
-
+            
+          ),
+          fill = "red"
+        ) +
+        ggplot2::geom_polygon(
+          data = datapoly_non_outlier_cell[which(datapoly_non_outlier_cell$depth == i), ],
+          ggplot2::aes(
+            x = x,
+            y = y,
+            color = factor(depth),
+            size = factor(depth),
+            group = interaction(depth, cluster, child),
+            
           ),
           fill = NA
         ) +
@@ -148,7 +160,6 @@ plotHVT <-
         ggplot2::scale_size_manual(values = line.width, guide = "none") +
         ggplot2::labs(color = "Level")
     }
-  
     
     for (depth in 1:maxDepth) {
       p <-  p + ggplot2::geom_point(
@@ -168,7 +179,7 @@ plotHVT <-
     }
     
     p <- p +
-      ggplot2::scale_color_manual(name = "Level",
+      ggplot2::scale_color_manual(name = "Outlier Cell",
                          values = color.vec) +
       ggplot2::theme_bw() + ggplot2::theme(
         plot.background = ggplot2::element_blank()
@@ -199,7 +210,8 @@ plotHVT <-
                  label.padding=unit(0.55, "lines"),
                  label.size=0.4,
                  color="white",
-                 fill="#038225" )
+                 fill="#038225" ) +
+      theme(legend.position = "none")
 
     
     return(suppressMessages(p))

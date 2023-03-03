@@ -11,3 +11,6 @@ knitr::opts_chunk$set(
   dpi = 150
 )
 
+## ----mlayer_flow,echo=FALSE,warning=FALSE,fig.show='hold',message=FALSE,out.width='90%',fig.height=8,fig.cap='Figure 1: Flow diagram for predicting based on a set of maps using mlayerHVT()'----
+knitr::include_graphics('./mlayer1.png')
+
